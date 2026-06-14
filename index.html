@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>img.dmp — Discord Icons</title>
+  <meta name="description" content="A browsable archive of PNG and GIF icons for Discord server logos." />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">img.dmp</p>
+        <h1>Discord Icon Archive</h1>
+        <p class="subtitle">
+          PNG and GIF server logo assets, made for quick browsing, previewing, and direct linking.
+        </p>
+      </div>
+
+      <a class="repo-link" href="https://github.com/666forever/img.dmp" target="_blank" rel="noopener">
+        GitHub Repo
+      </a>
+    </header>
+
+    <section class="toolbar">
+      <input id="searchInput" type="search" placeholder="Search icons..." autocomplete="off" />
+
+      <div class="filters">
+        <button class="filter active" data-filter="all">All</button>
+        <button class="filter" data-filter="png">PNG</button>
+        <button class="filter" data-filter="gif">GIF</button>
+      </div>
+    </section>
+
+    <section class="stats">
+      <span id="totalCount">Loading icons…</span>
+      <span class="hint">Click an icon to copy its direct URL.</span>
+    </section>
+
+    <section id="gallery" class="gallery" aria-live="polite"></section>
+
+    <div id="toast" class="toast">Copied direct link</div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
