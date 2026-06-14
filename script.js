@@ -3,9 +3,24 @@ const REPO_NAME = "img.dmp";
 const BRANCH = "main";
 
 const FOLDERS = [
-  { type: "png", path: "png/icons" },
-  { type: "gif", path: "gif/icons" },
+  {
+    collection: "png",
+    filter: "png",
+    path: "png/icons",
+  },
+  {
+    collection: "gif",
+    filter: "gif",
+    path: "gif/icons",
+  },
+  {
+    collection: "sailor doll",
+    filter: "sailor-doll",
+    path: "sailor doll",
+  },
 ];
+
+const SUPPORTED_FORMATS = ["png", "gif", "jpg", "jpeg", "webp"];
 
 const gallery = document.getElementById("gallery");
 const searchInput = document.getElementById("searchInput");
@@ -16,44 +31,88 @@ const filterButtons = document.querySelectorAll(".filter");
 let allIcons = [];
 let activeFilter = "all";
 
-async function fetchFolder(folder) {
-  const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${folder.path}?ref=${BRANCH}`;
+function encodeGithubPath(path) {
+  return path
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
+function getExtension(filename) {
+  return filename.split(".").pop().toLowerCase();
+}
+
+function getPagesUrl(path) {
+  return `https://${REPO_OWNER}.github.io/${REPO_NAME}/${encodeGithubPath(path)}`;
+}
+
+async function fetchFolder(folder, path = folder.path) {
+  const apiPath = encodeGithubPath(path);
+  const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${apiPath}?ref=${BRANCH}`;
   const response = await fetch(apiUrl);
 
   if (!response.ok) {
-    throw new Error(`Could not load ${folder.path}`);
+    throw new Error(`could not load ${path}`);
   }
 
-  const files = await response.json();
+  const items = await response.json();
+  const icons = [];
 
-  return files
-    .filter((file) => file.type === "file")
-    .filter((file) => /\.(png|gif)$/i.test(file.name))
-    .map((file) => ({
-      name: file.name,
-      type: folder.type,
-      path: file.path,
-      url: `https://${REPO_OWNER}.github.io/${REPO_NAME}/${file.path}`,
-      raw: `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${file.path}`,
-    }));
+  for (const item of items) {
+    if (item.type === "dir") {
+      const nestedIcons = await fetchFolder(folder, item.path);
+      icons.push(...nestedIcons);
+      continue;
+    }
+
+    if (item.type !== "file") continue;
+
+    const format = getExtension(item.name);
+    if (!SUPPORTED_FORMATS.includes(format)) continue;
+
+    icons.push({
+      name: item.name,
+      format,
+      collection: folder.collection,
+      filter: folder.filter,
+      path: item.path,
+      url: getPagesUrl(item.path),
+      raw: item.download_url || getPagesUrl(item.path),
+    });
+  }
+
+  return icons;
 }
 
 async function loadIcons() {
-  try {
-    gallery.innerHTML = `<div class="empty">Loading icon archive…</div>`;
+  gallery.innerHTML = `<div class="empty">loading icon archive…</div>`;
 
-    const folderResults = await Promise.all(FOLDERS.map(fetchFolder));
-    allIcons = folderResults.flat().sort((a, b) => a.name.localeCompare(b.name));
+  const folderResults = await Promise.allSettled(FOLDERS.map((folder) => fetchFolder(folder)));
 
-    renderIcons();
-  } catch (error) {
+  const failedFolders = folderResults
+    .filter((result) => result.status === "rejected")
+    .map((result) => result.reason.message);
+
+  allIcons = folderResults
+    .filter((result) => result.status === "fulfilled")
+    .flatMap((result) => result.value)
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  if (!allIcons.length) {
     gallery.innerHTML = `
       <div class="empty">
-        Could not load icons. Make sure GitHub Pages is enabled and the folders exist.
+        no icons were found. make sure the folders exist and github pages is enabled.
       </div>
     `;
-    totalCount.textContent = "Failed to load icons";
-    console.error(error);
+    totalCount.textContent = "0 icons";
+    console.warn(failedFolders);
+    return;
+  }
+
+  renderIcons();
+
+  if (failedFolders.length) {
+    console.warn("some folders could not be loaded:", failedFolders);
   }
 }
 
@@ -61,28 +120,38 @@ function renderIcons() {
   const query = searchInput.value.trim().toLowerCase();
 
   const visibleIcons = allIcons.filter((icon) => {
-    const matchesSearch = icon.name.toLowerCase().includes(query);
-    const matchesFilter = activeFilter === "all" || icon.type === activeFilter;
+    const searchableText = `${icon.name} ${icon.path} ${icon.collection} ${icon.format}`.toLowerCase();
+
+    const matchesSearch = searchableText.includes(query);
+    const matchesFilter =
+      activeFilter === "all" ||
+      icon.format === activeFilter ||
+      icon.filter === activeFilter;
+
     return matchesSearch && matchesFilter;
   });
 
   totalCount.textContent = `${visibleIcons.length} / ${allIcons.length} icons`;
 
   if (!visibleIcons.length) {
-    gallery.innerHTML = `<div class="empty">No icons matched your search.</div>`;
+    gallery.innerHTML = `<div class="empty">no icons matched your search.</div>`;
     return;
   }
 
   gallery.innerHTML = visibleIcons
     .map((icon) => {
+      const label = icon.collection === icon.format
+        ? icon.format
+        : `${icon.collection} · ${icon.format}`;
+
       return `
-        <article class="card" data-url="${icon.url}" title="Click to copy direct URL">
+        <article class="card" data-url="${icon.url}" title="click to copy direct url">
           <div class="preview">
             <img src="${icon.raw}" alt="${escapeHtml(icon.name)}" loading="lazy">
           </div>
           <div class="meta">
             <div class="name">${escapeHtml(icon.name)}</div>
-            <div class="type">${icon.type}</div>
+            <div class="type">${escapeHtml(label)}</div>
           </div>
         </article>
       `;
@@ -95,9 +164,9 @@ function renderIcons() {
 
       try {
         await navigator.clipboard.writeText(url);
-        showToast("Copied direct link");
+        showToast("copied icon url");
       } catch {
-        showToast("Copy failed");
+        showToast("copy failed");
       }
     });
   });
