@@ -42,6 +42,15 @@ function getExtension(filename) {
   return filename.split(".").pop().toLowerCase();
 }
 
+function shuffle(items) {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function getPagesUrl(path) {
   return `https://${REPO_OWNER}.github.io/${REPO_NAME}/${encodeGithubPath(path)}`;
 }
@@ -93,10 +102,11 @@ async function loadIcons() {
     .filter((result) => result.status === "rejected")
     .map((result) => result.reason.message);
 
-  allIcons = folderResults
-    .filter((result) => result.status === "fulfilled")
-    .flatMap((result) => result.value)
-    .sort((a, b) => a.path.localeCompare(b.path));
+  allIcons = shuffle(
+    folderResults
+      .filter((result) => result.status === "fulfilled")
+      .flatMap((result) => result.value)
+  );
 
   if (!allIcons.length) {
     gallery.innerHTML = `
@@ -145,12 +155,11 @@ function renderIcons() {
         : `${icon.collection} · ${icon.format}`;
 
       return `
-        <article class="card" data-url="${icon.url}" title="click to copy direct url">
+        <article class="card" data-url="${icon.url}" title="${escapeHtml(icon.name)} · click to copy direct url">
           <div class="preview">
             <img src="${icon.raw}" alt="${escapeHtml(icon.name)}" loading="lazy">
           </div>
           <div class="meta">
-            <div class="name">${escapeHtml(icon.name)}</div>
             <div class="type">${escapeHtml(label)}</div>
           </div>
         </article>
