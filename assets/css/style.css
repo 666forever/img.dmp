@@ -117,8 +117,8 @@ h1 {
 }
 
 .gif-toggle:hover { border-color: var(--border-strong); }
-.gif-toggle-icon { width: 34px; height: 24px; background: var(--toggle-off); -webkit-mask: url("toggle-off.svg") center/contain no-repeat; mask: url("toggle-off.svg") center/contain no-repeat; transition: background-color 140ms ease; }
-.gif-toggle[aria-pressed="true"] .gif-toggle-icon { background: var(--toggle-on); -webkit-mask-image: url("toggle-on.svg"); mask-image: url("toggle-on.svg"); }
+.gif-toggle-icon { width: 34px; height: 24px; background: var(--toggle-off); -webkit-mask: url("../svg/ui/toggle-off.svg") center/contain no-repeat; mask: url("../svg/ui/toggle-off.svg") center/contain no-repeat; transition: background-color 140ms ease; }
+.gif-toggle[aria-pressed="true"] .gif-toggle-icon { background: var(--toggle-on); -webkit-mask-image: url("../svg/ui/toggle-on.svg"); mask-image: url("../svg/ui/toggle-on.svg"); }
 
 .gallery {
   display: grid;
@@ -187,10 +187,10 @@ h1 {
   background: currentColor;
 }
 
-.download-icon { -webkit-mask: url("archive-download.svg") center/contain no-repeat; mask: url("archive-download.svg") center/contain no-repeat; }
+.download-icon { -webkit-mask: url("../svg/ui/download.svg") center/contain no-repeat; mask: url("../svg/ui/download.svg") center/contain no-repeat; }
 .download-button.is-complete .download-icon,
-.viewer-download.is-complete .download-icon { -webkit-mask-image: url("Download-check.svg"); mask-image: url("Download-check.svg"); animation: check-pop 360ms var(--ease-spring); }
-.close-icon { -webkit-mask: url("Close.svg") center/contain no-repeat; mask: url("Close.svg") center/contain no-repeat; }
+.viewer-download.is-complete .download-icon { -webkit-mask-image: url("../svg/ui/download-check.svg"); mask-image: url("../svg/ui/download-check.svg"); animation: check-pop 360ms var(--ease-spring); }
+.close-icon { -webkit-mask: url("../svg/ui/close.svg") center/contain no-repeat; mask: url("../svg/ui/close.svg") center/contain no-repeat; }
 
 @keyframes check-pop {
   0% { transform: scale(.65) rotate(-8deg); opacity: .4; }

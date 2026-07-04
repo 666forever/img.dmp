@@ -16,7 +16,7 @@ const REPOSITORY = "666forever/img.dmp";
 const BRANCH = "main";
 const API_TREE_URL = `https://api.github.com/repos/${REPOSITORY}/git/trees/${BRANCH}?recursive=1`;
 const BATCH_SIZE = 120;
-const SUPPORTED_FOLDERS = new Set(["png/icons", "gif/icons"]);
+const SUPPORTED_FOLDERS = new Set(["icons/png", "icons/gif"]);
 const SUPPORTED_EXTENSIONS = new Set(["png", "gif"]);
 
 let allIcons = [];
