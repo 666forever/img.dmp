@@ -1,214 +1,552 @@
-const REPO_OWNER = "666forever";
-const REPO_NAME = "img.dmp";
-const BRANCH = "main";
+"use strict";
 
-const FOLDERS = [
-  {
-    collection: "png",
-    filter: "png",
-    path: "png/icons",
-  },
-  {
-    collection: "gif",
-    filter: "gif",
-    path: "gif/icons",
-  },
-  {
-    collection: "sailor doll",
-    filter: "sailor-doll",
-    path: "sailor doll",
-  },
-];
+/* =========================
+   ELEMENTS
+========================= */
 
-const SUPPORTED_FORMATS = ["png", "gif", "jpg", "jpeg", "webp"];
+const libraryGrid = document.getElementById("libraryGrid");
+const libraryStatus = document.getElementById("libraryStatus");
+const loadMoreSentinel = document.getElementById("loadMoreSentinel");
+const filterButtons = document.querySelectorAll(".library-filter");
 
-const gallery = document.getElementById("gallery");
-const searchInput = document.getElementById("searchInput");
-const totalCount = document.getElementById("totalCount");
-const toast = document.getElementById("toast");
-const filterButtons = document.querySelectorAll(".filter");
+/* =========================
+   SUPPORTED MEDIA
+========================= */
 
-let allIcons = [];
+const IMAGE_FORMATS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "avif",
+]);
+
+const VIDEO_FORMATS = new Set([
+  "webm",
+  "mp4",
+]);
+
+/* =========================
+   STATE
+========================= */
+
+/*
+ * Same strategy as the older site:
+ * load a fixed number of complete rows per batch.
+ */
+const BATCH_SIZE_BASE = 12;
+
+let columnCount = getColumnCount();
+let batchSize = BATCH_SIZE_BASE * columnCount;
+
+let allMedia = [];
+let filteredMedia = [];
 let activeFilter = "all";
 
-function encodeGithubPath(path) {
-  return path
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
-}
+let index = 0;
+let loadQueue = 0;
+let observer = null;
+let resizeTimer = null;
 
-function getExtension(filename) {
-  return filename.split(".").pop().toLowerCase();
-}
+const columns = [];
+const loadedItems = new Set();
 
-function shuffle(items) {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
+/* =========================
+   RESPONSIVE COLUMNS
+========================= */
 
-function getPagesUrl(path) {
-  return `https://${REPO_OWNER}.github.io/${REPO_NAME}/${encodeGithubPath(path)}`;
-}
-
-async function fetchFolder(folder, path = folder.path) {
-  const apiPath = encodeGithubPath(path);
-  const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${apiPath}?ref=${BRANCH}`;
-  const response = await fetch(apiUrl);
-
-  if (!response.ok) {
-    throw new Error(`could not load ${path}`);
+function getColumnCount() {
+  if (window.innerWidth <= 700) {
+    return 2;
   }
 
-  const items = await response.json();
-  const icons = [];
-
-  for (const item of items) {
-    if (item.type === "dir") {
-      const nestedIcons = await fetchFolder(folder, item.path);
-      icons.push(...nestedIcons);
-      continue;
-    }
-
-    if (item.type !== "file") continue;
-
-    const format = getExtension(item.name);
-    if (!SUPPORTED_FORMATS.includes(format)) continue;
-
-    icons.push({
-      name: item.name,
-      format,
-      collection: folder.collection,
-      filter: folder.filter,
-      path: item.path,
-      url: getPagesUrl(item.path),
-      raw: item.download_url || getPagesUrl(item.path),
-    });
+  if (window.innerWidth <= 1000) {
+    return 3;
   }
 
-  return icons;
+  if (window.innerWidth <= 1350) {
+    return 4;
+  }
+
+  return 5;
 }
 
-async function loadIcons() {
-  gallery.innerHTML = `<div class="empty">loading icon archive…</div>`;
+function createColumns() {
+  columnCount = getColumnCount();
+  batchSize = BATCH_SIZE_BASE * columnCount;
 
-  const folderResults = await Promise.allSettled(FOLDERS.map((folder) => fetchFolder(folder)));
+  libraryGrid.innerHTML = "";
+  columns.length = 0;
 
-  const failedFolders = folderResults
-    .filter((result) => result.status === "rejected")
-    .map((result) => result.reason.message);
+  for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+    const column = document.createElement("div");
 
-  allIcons = shuffle(
-    folderResults
-      .filter((result) => result.status === "fulfilled")
-      .flatMap((result) => result.value)
+    column.className = "library-column";
+
+    libraryGrid.appendChild(column);
+    columns.push(column);
+  }
+}
+
+/* =========================
+   HELPERS
+========================= */
+
+function getExtension(path) {
+  const cleanPath = String(path)
+    .split("?")[0]
+    .split("#")[0];
+
+  const segments = cleanPath.split(".");
+
+  return segments.length > 1
+    ? segments.pop().toLowerCase()
+    : "";
+}
+
+function getMediaKey(item) {
+  return `${item.category}/${item.src}`;
+}
+
+function getVideoMimeType(extension) {
+  if (extension === "webm") {
+    return "video/webm";
+  }
+
+  if (extension === "mp4") {
+    return "video/mp4";
+  }
+
+  return "application/octet-stream";
+}
+
+/* =========================
+   CREATE MEDIA CARD
+========================= */
+
+function createImageElement(item, isHighPriority) {
+  const image = document.createElement("img");
+
+  image.src = item.src;
+  image.alt = item.filename || "";
+  image.loading = isHighPriority ? "eager" : "lazy";
+  image.decoding = "async";
+
+  if (isHighPriority) {
+    image.fetchPriority = "high";
+  }
+
+  if (Number.isFinite(item.width)) {
+    image.width = item.width;
+  }
+
+  if (Number.isFinite(item.height)) {
+    image.height = item.height;
+  }
+
+  return image;
+}
+
+function createVideoElement(item, extension) {
+  const video = document.createElement("video");
+  const source = document.createElement("source");
+
+  video.muted = true;
+  video.loop = true;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+
+  source.src = item.src;
+  source.type = getVideoMimeType(extension);
+
+  video.appendChild(source);
+
+  return video;
+}
+
+function createCard(item, isHighPriority = false) {
+  const extension = getExtension(item.src);
+
+  if (
+    !IMAGE_FORMATS.has(extension) &&
+    !VIDEO_FORMATS.has(extension)
+  ) {
+    return null;
+  }
+
+  const card = document.createElement("a");
+  const key = getMediaKey(item);
+
+  card.className = "library-card";
+  card.href = item.src;
+  card.target = "_blank";
+  card.rel = "noopener noreferrer";
+  card.dataset.category = item.category;
+  card.dataset.key = key;
+
+  card.setAttribute(
+    "aria-label",
+    item.filename || "Open media"
   );
 
-  if (!allIcons.length) {
-    gallery.innerHTML = `
-      <div class="empty">
-        no icons were found. make sure the folders exist and github pages is enabled.
-      </div>
-    `;
-    totalCount.textContent = "0 icons";
-    console.warn(failedFolders);
-    return;
+  let media;
+
+  if (VIDEO_FORMATS.has(extension)) {
+    media = createVideoElement(item, extension);
+
+    media.addEventListener(
+      "loadeddata",
+      () => {
+        media.classList.add("loaded");
+        card.classList.add("visible");
+      },
+      { once: true }
+    );
+  } else {
+    media = createImageElement(item, isHighPriority);
+
+    media.addEventListener(
+      "load",
+      () => {
+        media.classList.add("loaded");
+        card.classList.add("visible");
+      },
+      { once: true }
+    );
   }
 
-  renderIcons();
+  media.addEventListener(
+    "error",
+    () => {
+      loadedItems.delete(key);
+      card.remove();
+    },
+    { once: true }
+  );
 
-  if (failedFolders.length) {
-    console.warn("some folders could not be loaded:", failedFolders);
-  }
+  card.appendChild(media);
+
+  return card;
 }
 
-function renderIcons() {
-  const query = searchInput.value.trim().toLowerCase();
+/* =========================
+   FILTERING
+========================= */
 
-  const visibleIcons = allIcons.filter((icon) => {
-    const searchableText = `${icon.name} ${icon.path} ${icon.collection} ${icon.format}`.toLowerCase();
-
-    const matchesSearch = searchableText.includes(query);
-    const matchesFilter =
+function updateFilteredMedia() {
+  filteredMedia = allMedia.filter((item) => {
+    return (
       activeFilter === "all" ||
-      icon.format === activeFilter ||
-      icon.filter === activeFilter;
-
-    return matchesSearch && matchesFilter;
+      item.category === activeFilter
+    );
   });
+}
 
-  totalCount.textContent = `${visibleIcons.length} / ${allIcons.length} icons`;
+function updateStatus() {
+  const loadedCount = Math.min(
+    index,
+    filteredMedia.length
+  );
 
-  if (!visibleIcons.length) {
-    gallery.innerHTML = `<div class="empty">no icons matched your search.</div>`;
+  if (!filteredMedia.length) {
+    libraryStatus.textContent = "no items found";
+    loadMoreSentinel.hidden = true;
     return;
   }
 
-  gallery.innerHTML = visibleIcons
-    .map((icon) => {
-      const label = icon.collection === icon.format
-        ? icon.format
-        : `${icon.collection} · ${icon.format}`;
+  libraryStatus.textContent =
+    `${loadedCount} of ${filteredMedia.length} items`;
 
-      return `
-        <article class="card" data-url="${icon.url}" title="${escapeHtml(icon.name)} · click to copy direct url">
-          <div class="preview">
-            <img src="${icon.raw}" alt="${escapeHtml(icon.name)}" loading="lazy">
-          </div>
-          <div class="meta">
-            <div class="type">${escapeHtml(label)}</div>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
+  loadMoreSentinel.hidden =
+    loadedCount >= filteredMedia.length;
+}
 
-  document.querySelectorAll(".card").forEach((card) => {
-    card.addEventListener("click", async () => {
-      const url = card.dataset.url;
+/* =========================
+   LOAD BATCH
+========================= */
 
-      try {
-        await navigator.clipboard.writeText(url);
-        showToast("copied icon url");
-      } catch {
-        showToast("copy failed");
-      }
-    });
+function loadBatch() {
+  if (
+    index >= filteredMedia.length ||
+    columns.length === 0
+  ) {
+    updateStatus();
+    return;
+  }
+
+  const batch = filteredMedia.slice(
+    index,
+    index + batchSize
+  );
+
+  /*
+   * One fragment per column, matching the old website.
+   * This keeps DOM insertion compact and predictable.
+   */
+  const fragments = columns.map(() =>
+    document.createDocumentFragment()
+  );
+
+  batch.forEach((item, batchIndex) => {
+    const key = getMediaKey(item);
+
+    if (loadedItems.has(key)) {
+      return;
+    }
+
+    loadedItems.add(key);
+
+    /*
+     * Prioritize only the very first visible cards.
+     */
+    const isHighPriority =
+      index === 0 && batchIndex < columnCount;
+
+    const card = createCard(
+      item,
+      isHighPriority
+    );
+
+    if (!card) {
+      return;
+    }
+
+    /*
+     * Preserve stable round-robin placement.
+     * No measuring or reshuffling is performed.
+     */
+    const absoluteIndex = index + batchIndex;
+    const columnIndex =
+      absoluteIndex % columnCount;
+
+    const rowIndex = Math.floor(
+      absoluteIndex / columnCount
+    );
+
+    /*
+     * Same restrained entrance staggering pattern.
+     * Delay is capped after six rows.
+     */
+    const delay =
+      Math.min(rowIndex, 5) * 35;
+
+    card.style.setProperty(
+      "--enter-delay",
+      `${delay}ms`
+    );
+
+    fragments[columnIndex].appendChild(card);
   });
+
+  fragments.forEach((fragment, columnIndex) => {
+    columns[columnIndex].appendChild(fragment);
+  });
+
+  index += batch.length;
+
+  libraryGrid.setAttribute(
+    "aria-busy",
+    "false"
+  );
+
+  updateStatus();
 }
 
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add("show");
+/* =========================
+   RESET LIBRARY
+========================= */
 
-  window.clearTimeout(showToast.timeout);
-  showToast.timeout = window.setTimeout(() => {
-    toast.classList.remove("show");
-  }, 1400);
+function resetLibrary() {
+  index = 0;
+  loadQueue = 0;
+
+  loadedItems.clear();
+
+  libraryGrid.setAttribute(
+    "aria-busy",
+    "true"
+  );
+
+  createColumns();
+  loadBatch();
 }
 
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+/* =========================
+   INFINITE SCROLL
+========================= */
+
+function setupInfiniteScroll() {
+  observer?.disconnect();
+
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      if (!entry.isIntersecting) {
+        return;
+      }
+
+      /*
+       * Same queue protection as the old website.
+       * Never allow several batches to pile up.
+       */
+      if (loadQueue > 2) {
+        return;
+      }
+
+      if (index >= filteredMedia.length) {
+        updateStatus();
+        return;
+      }
+
+      loadQueue += 1;
+
+      requestAnimationFrame(() => {
+        loadBatch();
+
+        requestAnimationFrame(() => {
+          loadQueue -= 1;
+
+          /*
+           * If the sentinel remains visible after insertion,
+           * allow one additional batch shortly afterward.
+           */
+          if (
+            entry.isIntersecting &&
+            loadQueue === 0 &&
+            index < filteredMedia.length
+          ) {
+            loadQueue += 1;
+
+            window.setTimeout(() => {
+              loadBatch();
+              loadQueue -= 1;
+            }, 50);
+          }
+        });
+      });
+    },
+    {
+      root: null,
+
+      /*
+       * Copied from the old loading behavior:
+       * begin loading well before reaching the end.
+       */
+      rootMargin: "1500px 0px",
+      threshold: 0,
+    }
+  );
+
+  observer.observe(loadMoreSentinel);
 }
 
-searchInput.addEventListener("input", renderIcons);
+/* =========================
+   APPLY FILTER
+========================= */
+
+function applyFilter(filter) {
+  activeFilter = filter;
+
+  updateFilteredMedia();
+  resetLibrary();
+}
+
+/* =========================
+   LOAD MANIFEST
+========================= */
+
+async function loadLibrary() {
+  try {
+    const response = await fetch(
+      "./data/content/images.json",
+      {
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Image manifest request failed with status ${response.status}.`
+      );
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      throw new TypeError(
+        "The image manifest must contain a JSON array."
+      );
+    }
+
+    allMedia = data.filter((item) => {
+      return (
+        item &&
+        typeof item.src === "string" &&
+        typeof item.category === "string"
+      );
+    });
+
+    updateFilteredMedia();
+    resetLibrary();
+    setupInfiniteScroll();
+  } catch (error) {
+    console.error(
+      "Could not load image library:",
+      error
+    );
+
+    libraryGrid.setAttribute(
+      "aria-busy",
+      "false"
+    );
+
+    libraryStatus.textContent =
+      "could not load the image manifest.";
+
+    loadMoreSentinel.hidden = true;
+  }
+}
+
+/* =========================
+   EVENTS
+========================= */
 
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    filterButtons.forEach((btn) => btn.classList.remove("active"));
-    button.classList.add("active");
-    activeFilter = button.dataset.filter;
-    renderIcons();
+    filterButtons.forEach((filterButton) => {
+      filterButton.classList.remove(
+        "is-active"
+      );
+    });
+
+    button.classList.add("is-active");
+
+    applyFilter(
+      button.dataset.filter || "all"
+    );
   });
 });
 
-loadIcons();
+window.addEventListener("resize", () => {
+  window.clearTimeout(resizeTimer);
+
+  resizeTimer = window.setTimeout(() => {
+    const nextColumnCount =
+      getColumnCount();
+
+    /*
+     * Rebuild only when the responsive column count
+     * actually changes.
+     */
+    if (nextColumnCount !== columnCount) {
+      resetLibrary();
+    }
+  }, 250);
+});
+
+/* =========================
+   START
+========================= */
+
+loadLibrary();
