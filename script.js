@@ -1,9 +1,9 @@
 "use strict";
 
 const gallery = document.getElementById("gallery");
-const totalCount = document.getElementById("totalCount");
 const searchInput = document.getElementById("searchInput");
-const filterButtons = [...document.querySelectorAll(".filter")];
+const gifToggle = document.getElementById("gifToggle");
+const gifToggleIcon = document.getElementById("gifToggleIcon");
 const toast = document.getElementById("toast");
 
 const REPOSITORY = "666forever/img.dmp";
@@ -15,8 +15,8 @@ const SUPPORTED_EXTENSIONS = new Set(["png", "gif"]);
 
 let allIcons = [];
 let visibleIcons = [];
-let activeFilter = "all";
 let renderedCount = 0;
+let showGifs = true;
 let observer = null;
 let toastTimer = null;
 
@@ -29,10 +29,18 @@ function getFolder(path) {
 }
 
 function encodePath(path) {
-  return path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function shuffle(items) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+
+  return shuffled;
 }
 
 function createIconRecord(path) {
@@ -48,7 +56,7 @@ function createIconRecord(path) {
   };
 }
 
-function showToast(message = "copied icon url") {
+function showToast(message) {
   window.clearTimeout(toastTimer);
   toast.textContent = message;
   toast.classList.add("show");
@@ -74,6 +82,16 @@ async function copyText(text) {
   }
 }
 
+function downloadIcon(icon) {
+  const link = document.createElement("a");
+  link.href = icon.directUrl;
+  link.download = icon.filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 function createCard(icon) {
   const card = document.createElement("article");
   card.className = "card";
@@ -90,25 +108,21 @@ function createCard(icon) {
   image.loading = "lazy";
   image.decoding = "async";
 
-  const meta = document.createElement("div");
-  meta.className = "meta";
+  const downloadButton = document.createElement("button");
+  downloadButton.className = "download-button";
+  downloadButton.type = "button";
+  downloadButton.setAttribute("aria-label", `Download ${icon.filename}`);
+  downloadButton.innerHTML = '<img src="archive-download.svg" alt="" aria-hidden="true">';
 
-  const name = document.createElement("div");
-  name.className = "name";
-  name.textContent = icon.filename;
-  name.title = icon.filename;
-
-  const type = document.createElement("div");
-  type.className = "type";
-  type.textContent = icon.extension;
-
-  preview.appendChild(image);
-  meta.append(name, type);
-  card.append(preview, meta);
+  downloadButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    downloadIcon(icon);
+    showToast("download started");
+  });
 
   const copyUrl = async () => {
     await copyText(icon.directUrl);
-    showToast();
+    showToast("copied icon url");
   };
 
   card.addEventListener("click", copyUrl);
@@ -121,16 +135,9 @@ function createCard(icon) {
 
   image.addEventListener("error", () => card.remove(), { once: true });
 
+  preview.appendChild(image);
+  card.append(preview, downloadButton);
   return card;
-}
-
-function updateCount() {
-  if (!visibleIcons.length) {
-    totalCount.textContent = "no matching icons";
-    return;
-  }
-
-  totalCount.textContent = `${visibleIcons.length.toLocaleString()} icon${visibleIcons.length === 1 ? "" : "s"}`;
 }
 
 function renderNextBatch() {
@@ -180,14 +187,14 @@ function applyFilters() {
   const query = searchInput.value.trim().toLowerCase();
 
   visibleIcons = allIcons.filter((icon) => {
-    const matchesType = activeFilter === "all" || icon.extension === activeFilter;
+    const matchesGifSetting = showGifs || icon.extension !== "gif";
     const matchesSearch = !query || icon.filename.toLowerCase().includes(query);
-    return matchesType && matchesSearch;
+    return matchesGifSetting && matchesSearch;
   });
 
   renderedCount = 0;
+  observer?.disconnect();
   gallery.replaceChildren();
-  updateCount();
 
   if (!visibleIcons.length) {
     const empty = document.createElement("div");
@@ -202,6 +209,12 @@ function applyFilters() {
   if (renderedCount < visibleIcons.length) {
     setupInfiniteScroll();
   }
+}
+
+function updateGifToggle() {
+  gifToggle.setAttribute("aria-pressed", String(showGifs));
+  gifToggle.setAttribute("aria-label", showGifs ? "Hide GIFs" : "Show GIFs");
+  gifToggleIcon.src = showGifs ? "toggle-on.svg" : "toggle-off.svg";
 }
 
 async function loadIcons() {
@@ -222,36 +235,31 @@ async function loadIcons() {
       throw new TypeError("GitHub returned an invalid repository tree.");
     }
 
-    allIcons = data.tree
-      .filter((entry) => {
-        if (entry.type !== "blob" || typeof entry.path !== "string") return false;
-        return SUPPORTED_FOLDERS.has(getFolder(entry.path)) && SUPPORTED_EXTENSIONS.has(getExtension(entry.path));
-      })
-      .map((entry) => createIconRecord(entry.path))
-      .sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true }));
+    allIcons = shuffle(
+      data.tree
+        .filter((entry) => {
+          if (entry.type !== "blob" || typeof entry.path !== "string") return false;
+          return SUPPORTED_FOLDERS.has(getFolder(entry.path)) && SUPPORTED_EXTENSIONS.has(getExtension(entry.path));
+        })
+        .map((entry) => createIconRecord(entry.path))
+    );
 
     applyFilters();
   } catch (error) {
     console.error("Could not load icon library:", error);
-    totalCount.textContent = "could not load icons";
     gallery.innerHTML = '<div class="empty">The icon list could not be loaded. Refresh the page or check GitHub API availability.</div>';
   } finally {
     gallery.setAttribute("aria-busy", "false");
   }
 }
 
-filterButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    activeFilter = button.dataset.filter || "all";
-
-    filterButtons.forEach((candidate) => {
-      candidate.classList.toggle("active", candidate === button);
-    });
-
-    applyFilters();
-  });
+gifToggle.addEventListener("click", () => {
+  showGifs = !showGifs;
+  updateGifToggle();
+  applyFilters();
 });
 
 searchInput.addEventListener("input", applyFilters);
 
+updateGifToggle();
 loadIcons();

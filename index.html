@@ -4,43 +4,33 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>7th project</title>
-  <meta name="description" content="just an easier way to browse icons for discord servers" />
+  <title>discord icon dump</title>
+  <meta name="description" content="an easier way to browse icons for discord servers" />
 
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="page">
     <header class="hero">
-      <div>
-        <p class="eyebrow">7th project</p>
-        <h1>discord icon dump</h1>
-        <p class="subtitle"></p>
-      </div>
+      <h1>discord icon dump</h1>
 
-      <a class="repo-link" href="https://github.com/666forever/img.dmp" target="_blank" rel="noopener">
-        github repo
+      <a class="repo-link" href="https://github.com/666forever/img.dmp" target="_blank" rel="noopener" aria-label="Open GitHub repository">
+        <img src="GitHub_Lockup_White.svg" alt="GitHub" />
       </a>
     </header>
 
-    <section class="toolbar">
-      <input id="searchInput" type="search" placeholder="search icons..." autocomplete="off" />
+    <section class="toolbar" aria-label="Icon controls">
+      <input id="searchInput" type="search" placeholder="search icons..." autocomplete="off" aria-label="Search icons" />
 
-      <div class="filters">
-        <button class="filter active" data-filter="all">all</button>
-        <button class="filter" data-filter="png">png</button>
-        <button class="filter" data-filter="gif">gif</button>
-      </div>
-    </section>
-
-    <section class="stats">
-      <span id="totalCount">loading</span>
-      <span class="hint">click an icon to copy its direct url</span>
+      <button id="gifToggle" class="gif-toggle" type="button" aria-pressed="true" aria-label="Hide GIFs">
+        <span>gifs</span>
+        <img id="gifToggleIcon" src="toggle-on.svg" alt="" aria-hidden="true" />
+      </button>
     </section>
 
     <section id="gallery" class="gallery" aria-live="polite"></section>
 
-    <div id="toast" class="toast">copied icon url</div>
+    <div id="toast" class="toast" role="status" aria-live="polite">copied icon url</div>
   </main>
 
   <script src="script.js"></script>
