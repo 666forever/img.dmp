@@ -138,8 +138,7 @@ h1 {
 }
 
 .card:hover,
-.card:focus-visible,
-.card:focus-within {
+.card:focus-visible {
   transform: translateY(-2px);
   background: var(--card-hover);
   border-color: var(--border-strong);
@@ -172,8 +171,7 @@ h1 {
 }
 
 .card:hover .download-button,
-.card:focus-visible .download-button,
-.card:focus-within .download-button {
+.download-button:focus-visible {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
@@ -238,7 +236,8 @@ h1 {
 .viewer.is-closing .viewer-panel { opacity: 0; transform: translateY(6px) scale(.97); transition: opacity 120ms ease, transform 140ms ease; }
 .viewer.is-closing .viewer-backdrop { opacity: 0; transition-duration: 120ms; }
 
-.viewer-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 34px; height: 34px; }
+.viewer-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 40px; height: 40px; }
+.viewer-close .close-icon { width: 24px; height: 24px; }
 .viewer-close.is-pressed .close-icon { animation: close-press 260ms var(--ease-spring); }
 @keyframes close-press { 0% { transform: scale(1); } 45% { transform: scale(.68) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
 

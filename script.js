@@ -117,10 +117,10 @@ function createDownloadButton(icon, className = "download-button") {
   return button;
 }
 
-function openViewer(icon, trigger) {
+function openViewer(icon, trigger, restoreFocus = false) {
   window.clearTimeout(closeTimer);
   activeIcon = icon;
-  lastFocusedElement = trigger;
+  lastFocusedElement = restoreFocus ? trigger : null;
 
   viewerImage.src = icon.relativeUrl;
   viewerImage.alt = "";
@@ -153,7 +153,11 @@ function closeViewer(animateButton = false) {
     viewerImage.removeAttribute("src");
     document.body.classList.remove("viewer-open");
     activeIcon = null;
-    lastFocusedElement?.focus({ preventScroll: true });
+    if (lastFocusedElement) {
+      lastFocusedElement.focus({ preventScroll: true });
+    } else {
+      viewerClose.blur();
+    }
   }, animateButton ? 190 : 130);
 }
 
@@ -176,11 +180,11 @@ function createCard(icon) {
 
   const downloadButton = createDownloadButton(icon);
 
-  card.addEventListener("click", () => openViewer(icon, card));
+  card.addEventListener("click", () => openViewer(icon, card, false));
   card.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      openViewer(icon, card);
+      openViewer(icon, card, true);
     }
   });
 
