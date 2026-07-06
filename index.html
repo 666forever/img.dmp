@@ -4,35 +4,49 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>discord icon dump</title>
-  <meta name="description" content="an easier way to browse icons for discord servers" />
+  <meta name="description" content="an easier way to browse icons, stickers, and wallpapers" />
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
   <main class="page">
     <header class="hero">
       <h1>discord icon dump</h1>
+
       <a class="repo-link" href="https://github.com/666forever/img.dmp" target="_blank" rel="noopener" aria-label="Open GitHub repository">
         <img src="assets/svg/brand/github-lockup-white.svg" alt="GitHub" />
       </a>
     </header>
 
-    <section class="toolbar" aria-label="Icon controls">
-      <button id="gifToggle" class="gif-toggle" type="button" aria-pressed="true" aria-label="Hide GIFs">
-        <span>gifs</span>
-        <span class="gif-toggle-icon" aria-hidden="true"></span>
-      </button>
+    <section class="toolbar" aria-label="Library controls">
+      <nav class="content-tabs" aria-label="Content type">
+        <button class="content-tab is-active" type="button" data-category="icons" aria-pressed="true">icons</button>
+        <button class="content-tab" type="button" data-category="stickers" aria-pressed="false">stickers</button>
+        <button class="content-tab" type="button" data-category="wallpapers" aria-pressed="false">wallpapers</button>
+      </nav>
 
-      <input id="searchInput" type="search" placeholder="search icons…" autocomplete="off" aria-label="Search icons" />
+      <div class="toolbar-actions">
+        <button id="gifToggle" class="gif-toggle" type="button" aria-pressed="true" aria-label="Hide GIFs">
+          <span>gifs</span>
+          <span class="gif-toggle-icon" aria-hidden="true"></span>
+        </button>
+
+        <div id="searchControl" class="search-control">
+          <input id="searchInput" type="search" placeholder="search icons…" autocomplete="off" aria-label="Search icons" />
+          <button id="searchToggle" class="search-toggle" type="button" aria-label="Open search" aria-expanded="false">
+            <span class="search-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
     </section>
 
     <section id="gallery" class="gallery" aria-live="polite" aria-busy="true"></section>
   </main>
 
   <div id="viewer" class="viewer" aria-hidden="true">
-    <button class="viewer-backdrop" type="button" tabindex="-1" aria-label="Close icon viewer"></button>
+    <button class="viewer-backdrop" type="button" tabindex="-1" aria-label="Close viewer"></button>
 
-    <section class="viewer-panel" role="dialog" aria-modal="true" aria-label="Icon preview">
-      <button id="viewerClose" class="icon-button viewer-close" type="button" aria-label="Close icon viewer">
+    <section class="viewer-panel" role="dialog" aria-modal="true" aria-label="Asset preview">
+      <button id="viewerClose" class="icon-button viewer-close" type="button" aria-label="Close viewer">
         <span class="close-icon" aria-hidden="true"></span>
       </button>
 
@@ -49,7 +63,7 @@
           <span id="viewerExtension">—</span>
         </div>
 
-        <button id="viewerDownload" class="icon-button viewer-download" type="button" aria-label="Download icon">
+        <button id="viewerDownload" class="icon-button viewer-download" type="button" aria-label="Download asset">
           <span class="download-icon" aria-hidden="true"></span>
         </button>
       </footer>
