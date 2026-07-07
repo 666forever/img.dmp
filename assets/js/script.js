@@ -1,9 +1,11 @@
+import { initStarField } from "./components/StarField.js";
+
 "use strict";
 
+initStarField();
+
 const gallery = document.getElementById("gallery");
-const searchControl = document.getElementById("searchControl");
 const searchInput = document.getElementById("searchInput");
-const searchToggle = document.getElementById("searchToggle");
 const gifToggle = document.getElementById("gifToggle");
 const categoryButtons = [...document.querySelectorAll(".content-tab")];
 
@@ -19,7 +21,17 @@ const viewerDownload = document.getElementById("viewerDownload");
 const REPOSITORY = "666forever/img.dmp";
 const BRANCH = "main";
 const API_TREE_URL = `https://api.github.com/repos/${REPOSITORY}/git/trees/${BRANCH}?recursive=1`;
-const BATCH_SIZE = 120;
+const BATCH_SIZE = {
+  icons: 96,
+  stickers: 48,
+  wallpapers: 18,
+};
+
+const OBSERVER_MARGIN = {
+  icons: "500px 0px",
+  stickers: "400px 0px",
+  wallpapers: "220px 0px",
+};
 
 const CATEGORY_CONFIG = {
   icons: {
@@ -186,6 +198,7 @@ function openViewer(item, trigger, restoreFocus = false) {
   activeItem = item;
   lastFocusedElement = restoreFocus ? trigger : null;
 
+  viewer.classList.toggle("is-wallpaper", item.category === "wallpapers");
   viewerImage.src = item.relativeUrl;
   viewerImage.alt = "";
   viewerDimensions.textContent = "loading";
@@ -213,7 +226,7 @@ function closeViewer(animateButton = false) {
   viewer.classList.add("is-closing");
 
   closeTimer = window.setTimeout(() => {
-    viewer.classList.remove("is-open", "is-closing");
+    viewer.classList.remove("is-open", "is-closing", "is-wallpaper");
     viewer.setAttribute("aria-hidden", "true");
     viewerImage.removeAttribute("src");
     document.body.classList.remove("viewer-open");
@@ -242,7 +255,10 @@ function createCard(item) {
   image.alt = "";
   image.loading = "lazy";
   image.decoding = "async";
-  image.addEventListener("error", () => card.remove(), { once: true });
+  image.fetchPriority = "low";
+  image.addEventListener("error", () => {
+    if (card.isConnected) card.remove();
+  }, { once: true });
 
   const downloadButton = createDownloadButton(item);
 
@@ -261,7 +277,8 @@ function createCard(item) {
 }
 
 function renderNextBatch() {
-  const batch = visibleItems.slice(renderedCount, renderedCount + BATCH_SIZE);
+  const batchSize = BATCH_SIZE[activeCategory];
+  const batch = visibleItems.slice(renderedCount, renderedCount + batchSize);
 
   if (!batch.length) {
     observer?.disconnect();
@@ -299,7 +316,7 @@ function setupInfiniteScroll() {
     if (renderedCount < visibleItems.length) {
       setupInfiniteScroll();
     }
-  }, { rootMargin: "900px 0px" });
+  }, { rootMargin: OBSERVER_MARGIN[activeCategory] });
 
   observer.observe(sentinel);
 }
@@ -350,7 +367,6 @@ function setCategory(category) {
   searchInput.placeholder = CATEGORY_CONFIG[category].searchPlaceholder;
   searchInput.setAttribute("aria-label", `Search ${category}`);
 
-  closeSearch();
   applyFilters();
 }
 
@@ -359,23 +375,6 @@ function updateGifToggle() {
   gifToggle.setAttribute("aria-label", showGifs ? "Hide GIFs" : "Show GIFs");
 }
 
-function openSearch(focusInput = false) {
-  searchControl.classList.add("is-open");
-  searchToggle.setAttribute("aria-expanded", "true");
-  searchToggle.setAttribute("aria-label", "Close search");
-
-  if (focusInput) {
-    window.requestAnimationFrame(() => searchInput.focus());
-  }
-}
-
-function closeSearch() {
-  if (searchInput.value || document.activeElement === searchInput) return;
-
-  searchControl.classList.remove("is-open");
-  searchToggle.setAttribute("aria-expanded", "false");
-  searchToggle.setAttribute("aria-label", "Open search");
-}
 
 async function loadLibrary() {
   gallery.setAttribute("aria-busy", "true");
@@ -417,48 +416,13 @@ gifToggle.addEventListener("click", () => {
   applyFilters();
 });
 
-searchToggle.addEventListener("click", () => {
-  if (searchControl.classList.contains("is-open")) {
-    if (searchInput.value) {
-      searchInput.value = "";
-      applyFilters();
-      searchInput.focus();
-      return;
-    }
-
-    searchInput.blur();
-    searchControl.classList.remove("is-open");
-    searchToggle.setAttribute("aria-expanded", "false");
-    searchToggle.setAttribute("aria-label", "Open search");
-    return;
-  }
-
-  openSearch(true);
-});
-
-searchInput.addEventListener("input", () => {
-  openSearch(false);
-  applyFilters();
-});
-
-searchInput.addEventListener("focus", () => openSearch(false));
+searchInput.addEventListener("input", applyFilters);
 
 searchInput.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape") return;
+  if (event.key !== "Escape" || !searchInput.value) return;
 
-  if (searchInput.value) {
-    searchInput.value = "";
-    applyFilters();
-    return;
-  }
-
-  searchInput.blur();
-  closeSearch();
-  searchToggle.focus();
-});
-
-searchInput.addEventListener("blur", () => {
-  window.setTimeout(closeSearch, 80);
+  searchInput.value = "";
+  applyFilters();
 });
 
 viewerBackdrop.addEventListener("click", () => closeViewer());
