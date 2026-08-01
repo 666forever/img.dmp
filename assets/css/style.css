@@ -623,3 +623,44 @@ h1 {
     transform: none;
   }
 }
+
+
+/* Colors tab */
+.toolbar-actions[hidden] {
+  display: none;
+}
+
+.gallery[data-category="colors"] {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 14px;
+}
+
+.color-swatch {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.color-swatch:hover {
+  transform: none;
+  filter: none;
+  opacity: 1;
+}
+
+.color-swatch:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .gallery[data-category="colors"] {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 10px;
+  }
+}
